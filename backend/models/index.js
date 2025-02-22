@@ -1,3 +1,4 @@
-import User from "./user.js";
+import User from "./User.js"
+import SocialMedia from "./SocialMedia.js"
 
-export { User};
+export { User, SocialMedia}
