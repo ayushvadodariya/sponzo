@@ -1,40 +1,40 @@
-import mongoose, { Schema} from 'mongoose';
-import bcrypt from 'bcrypt';
+import mongoose, { Schema} from 'mongoose'
+import bcrypt from 'bcrypt'
 
-const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
 const userSchema = new Schema({
-  email: {
-    type: String,
-    unique:true,
-    match: [emailRegex, 'Please provide valid email addresses'],
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-},{ timestamps: true});
+  verified: { type: Boolean, default: false },
+  email: { type: String, unique:true, match: [emailRegex, 'Please provide valid email addresses'] },
+  password: { type: String, required: true },
+  bio: { type: String },
+  profilePicture: { type: String },
+  introVideo: { type: String },
+  locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
+  socialmediaAccounts: [{ type: Schema.Types.ObjectId, ref: 'SocialMedia' }],
+  keywords: { type: [String] },
+},{ timestamps: true})
 
 userSchema.methods.authenticate = async function (enteredPassword){
-  const isMatch = await bcrypt.compare(enteredPassword, this.password);
-  return isMatch ? this : null;
+  const isMatch = await bcrypt.compare(enteredPassword, this.password)
+  return isMatch ? this : null
 }
 
 userSchema.pre("save", async function (next){
-  const user = this;
-  if(!user.isModified('password')) return next();
+  const user = this
+  if(!user.isModified('password')) return next()
 
   try{
-    const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash(user.password, salt);
+    const salt = await bcrypt.genSalt(10)
+    const hash = await bcrypt.hash(user.password, salt)
 
-    user.password = hash;
-    next();
+    user.password = hash
+    next()
   } catch(error){
-    return next(error);
+    return next(error)
   }
-});
+})
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema)
 
-export default User;
+export default User
