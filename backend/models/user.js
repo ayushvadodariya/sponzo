@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt'
 const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
 const userSchema = new Schema({
-  verified: { type: Boolean, default: false },
+  isVerified: { type: Boolean, default: false },
   email: { type: String, unique:true, match: [emailRegex, 'Please provide valid email addresses'] },
   password: { type: String, required: true },
   bio: { type: String },
