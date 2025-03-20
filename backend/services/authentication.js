@@ -1,11 +1,11 @@
 import jwt from 'jsonwebtoken'
-import { User } from "../models/index.js"
+import { BaseUser } from "../models/index.js"
 
 async function createToken(userId){
   const secret = process.env.JWT_SECRET
-  const user = await User.findById(userId, { password: 0})
+  const user = await BaseUser.findById(userId, { password: 0})
   const payload = {
-    userId: user._id
+    userId: user._id,
   }
   const token = await  jwt.sign(payload, secret)
   return token

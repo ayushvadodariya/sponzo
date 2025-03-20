@@ -1,17 +1,177 @@
-import { Otp, User }from "../models/index.js"
+import { Otp, BaseUser }from "../models/index.js"
 import { createToken} from "../services/authentication.js"
 import { sendEmail } from "../utils/email.js"
+import { getGoogleUserInfo } from "../config/google.js"
+
+
+async function logoutController(req, res) {
+  try {
+    // Clear the authentication cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully logged out"
+    });
+  } catch (error) {
+    return res.status(500).json({ 
+      status: "error",
+      message: "Server error",
+      errors: [{ message: error.message }]
+    });
+  }
+}
+
+async function googleSigninController(req, res) {
+  try {
+    const { code } = req.body
+
+    const userData = await getGoogleUserInfo(code)
+    if (!userData || !userData.email) {
+      return res.status(400).json({ 
+        status: "error",
+        message: "Failed to retrieve user information from Google",
+        authAction: "retry"
+      })
+    }
+
+    const user = await BaseUser.findOne({ email: userData.email })
+    if (!user) {
+      return res.status(401).json({ 
+        status: "error",
+        message: "User not found. Please sign up first.",
+        authAction: "signup" // Hint for the frontend
+      })
+    }
+
+    if (user.authProvider.providerName !== "google") {
+      return res.status(403).json({ 
+        status: "error",
+        message: "This email is registered with a different login method. Please use email/password to sign in.",
+        authAction: "signin-email" // Hint for the frontend
+      })
+    }
+
+    const token = await createToken(user._id)
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+    return res.status(200).json({
+      status: "success",
+      message: "Login successful",
+      data: {
+        token: token
+      }
+    })
+
+  } catch (err) {
+    console.error('Google auth error:', err.response?.data || err.message)
+    console.error('Stack trace:', err.stack)
+    return res.status(400).json({ 
+      status: "error",
+      message: "Invalid Google Token", 
+      errors: [{ message: err.message }]
+    })
+  }
+}
+
+async function googleSignupController(req, res) {
+  try {
+    const { code, userType } = req.body
+
+    const userData = await getGoogleUserInfo(code)
+    if (!userData || !userData.email) {
+      return res.status(400).json({ 
+        status: "error",
+        message: "Failed to retrieve user information from Google",
+        authAction: "retry"
+      })
+    }
+
+    const existingUser = await BaseUser.findOne({ email: userData.email })
+    if (existingUser) {
+      if (existingUser.authProvider.providerName === "google") {
+        return res.status(409).json({ 
+          status: "error",
+          message: "User already exists with this Google account. Please sign in instead.",
+          authAction: "signin"
+        })
+      }
+      
+      return res.status(409).json({ 
+        status: "error",
+        message: "An account already exists with this email. Please sign in with your password.",
+        authAction: "signin-email"
+      })
+    }
+    
+    // Create new user
+    const newUser = await BaseUser.create({
+      email: userData.email,
+      profilePicture: userData.profilePicture,
+      authProvider: {
+        providerName: "google"
+      },
+      isVerified: true,
+      userType
+    })
+    
+    // Generate token
+    const token = await createToken(newUser._id)
+    
+    // Set cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+    
+    return res.status(201).json({
+      status: "success",
+      message: "Account created successfully",
+      data: {
+        token: token,
+        user: {
+          email: newUser.email,
+          name: newUser.name,
+          picture: newUser.profilePicture
+        }
+      }
+    })
+    
+  } catch (err) {
+    console.error('Google signup error:', err.response?.data || err.message)
+    console.error('Stack trace:', err.stack)
+    return res.status(400).json({ 
+      status: "error",
+      message: "Failed to create account", 
+      errors: [{ message: err.message }]
+    })
+  }
+}
+
 
 async function signupController(req,res) {
   const { email } = req.body
-  if(!email){
-    return res.status(400).json({ message: "Provide email in body"})
-  }
 
   try{
-    const userRecord = await User.findOne({ email: email})
+    const userRecord = await BaseUser.findOne({ email: email})
     if(userRecord) {
-      return res.status(409).json({ message: "User already exists with provided email address"})
+      return res.status(409).json({ 
+        status: "error",
+        message: "User already exists with provided email address"
+      })
     }
     let otp = await Otp.findOne({ email: email}) 
     if(otp){
@@ -21,68 +181,111 @@ async function signupController(req,res) {
       email
     })
     await sendEmail(email,"Your Otp Code", `Your OTP is : ${otp.otp}. It expires in 5 minutes` )
-    return res.status(201).json({ message: "Otp has been send successfully. ", expireIn: "5 minutes"})
+    return res.status(201).json({ 
+      status: "success",
+      message: "Otp has been send successfully.",
+      data: { expireIn: "5 minutes" }
+    })
   } catch(error){
     console.error(error)
-    return res.status(500).json({message: error.message})
+    return res.status(500).json({
+      status: "error",
+      message: "Server error",
+      errors: [{ message: error.message }]
+    })
   }
 }
 
+
 async function signinController(req, res){
   const { email, password } = req.body
-  if(!email || !password){
-    return res.status(400).json({ message: "Provide email and password in body"})
-  }
 
   try{
-    const user = await User.findOne({ email })
+    const user = await BaseUser.findOne({ email })
     if(!user || !(await user.authenticate( password))){
-      return res.status(401).json({ message: "Invalid email or password"})
+      return res.status(401).json({ 
+        status: "error",
+        message: "Invalid email or password"
+      })
     }
     const token = await createToken(user._id)
-    return res.status(200).json({token:token, message: "Login successful"} )
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+    return res.status(200).json({
+      status: "success",
+      message: "Login successful",
+      data: { token: token }
+    })
   } catch(error){
-    return res.status(500).json({ message: error.message})
+    return res.status(500).json({ 
+      status: "error",
+      message: "Server error",
+      errors: [{ message: error.message }]
+    })
   }
 }
 
 async function verifyOtpController(req, res){
   try {
-    const { email, password, otp } = req.body
-    if(!email || !otp || !password){
-      return res.status(400).json({ message: "Provide email, password and otp in body"})
-    }   
+    const { email, password, otp, userType } = req.body
 
     const otpRecord = await Otp.findOne({ email: email})
     if (!otpRecord || otpRecord.otp !== otp) {
-      return res.status(400).json({ message: "Invalid or expired OTP. Request a new OTP." })
+      return res.status(400).json({ 
+        status: "error",
+        message: "Invalid or expired OTP. Request a new OTP." 
+      })
     }
 
     await Otp.deleteOne({ email: email})
 
-    const user = await User.create({
+    const user = await BaseUser.create({
       email,
-      password,
-      isVerified: true
+      authProvider:{
+        providerName: "email",
+        password: password
+      },
+      isVerified: true,
+      userType
     })
     
     const token = await createToken(user._id)
-    return res.status(201).json({ token,  message: "User created successfully"})
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    })
+    return res.status(201).json({ 
+      status: "success",
+      message: "User created successfully",
+      data: { token }
+    })
   } catch(error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ 
+      status: "error",
+      message: "Server error",
+      errors: [{ message: error.message }]
+    })
   }
 }
 
-async function resendOtp(req, res){
+async function resendOtpController(req, res){
   const { email } = req.body
-  if(!email){
-    return res.status(400).json({ message: "Provide email in body"})
-  }
 
   try {
-    const userRecord = await User.findOne({ email })
+    const userRecord = await BaseUser.findOne({ email })
     if(userRecord && userRecord.isVerified === true){
-      return res.status(400).json({ message: "User is already verified."})
+      return res.status(400).json({ 
+        status: "error",
+        message: "User is already verified."
+      })
     }
     let otp = await Otp.findOne({ email: email }) 
     if(otp){
@@ -92,40 +295,18 @@ async function resendOtp(req, res){
       email
     })
     await sendEmail(email,"Your Otp Code", `Your OTP is : ${otp.otp}. It expires in 5 minutes` )
-    return res.status(201).json({ message: "Otp has been send successfully. ", expireIn: "5 minutes"})
+    return res.status(201).json({ 
+      status: "success",
+      message: "Otp has been send successfully.",
+      data: { expireIn: "5 minutes" }
+    })
   } catch(error) {
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ 
+        status: "error",
+        message: "Server error",
+        errors: [{ message: error.message }]
+      })
   }
 }
 
-async function verifyExistingUserOtp(req, res){
-  try {
-    const { email, otp } = req.body
-    if (!email || !otp) {
-      return res.status(400).json({ message: "Provide email and OTP" })
-    }
-
-    const user = await User.findOne({ email })
-    if (!user) {
-      return res.status(404).json({ message: "User not found. Please sign up first." })
-    }
-    if (user.isVerified) {
-      return res.status(400).json({ message: "User is already verified." })
-    }
-
-    const otpRecord = await Otp.findOne({ email })
-    if (!otpRecord || otpRecord.otp !== otp) {
-      return res.status(400).json({ message: "Invalid or expired OTP. Request a new OTP." })
-    }
-
-    user.isVerified = true
-    await user.save()
-
-    await Otp.deleteOne({ email })
-
-    return res.status(200).json({ message: "OTP verified successfully. User is now verified." })
-  } catch(error) {
-      return res.status(500).json({ message: error.message });
-  }
-}
-export { signupController, signinController, verifyOtpController, resendOtp, verifyExistingUserOtp}
+export { logoutController, googleSigninController, googleSignupController, signupController, signinController, verifyOtpController, resendOtpController }
