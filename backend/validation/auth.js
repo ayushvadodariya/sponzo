@@ -21,22 +21,27 @@ const signinSchema = z.object({
 })
 
 const signupSchema = z.object({
-  email: emailSchema
-})
-
-const verifyOtpSchema = z.object({
   email: emailSchema,
-  otp: z.string({
-    required_error: "OTP is required"
-  }).length(6, "OTP must be exactly 6 characters"),
   password: z.string({
     required_error: "Password is required"
   }).min(6, "Password must be at least 6 characters"),
   userType: userTypeSchema
 })
 
+const verifyOtpSchema = z.object({
+  sessionId: z.string({
+    required_error: "Session ID is required"
+  }),
+  otp: z.string({
+    required_error: "OTP is required"
+  }).length(6, "OTP must be exactly 6 characters"),
+
+})
+
 const resendOtpSchema = z.object({
-  email: emailSchema
+  sessionId: z.string({
+    required_error: "Session ID is required"
+  })
 })
 
 const googleSignupSchema = z.object({
