@@ -1,1 +1,9 @@
 @import "tailwindcss";
+/* src/index.css */
+body {
+  font-family: 'Poppins', sans-serif;
+}
+/* src/index.css */
+.schoolbell-font {
+  font-family: 'Schoolbell', cursive;
+}
