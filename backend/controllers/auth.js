@@ -12,18 +12,18 @@ async function logoutController(req, res) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/'
-    });
+    })
 
     return res.status(200).json({
       status: "success",
       message: "Successfully logged out"
-    });
+    })
   } catch (error) {
     return res.status(500).json({ 
       status: "error",
       message: "Server error",
       errors: [{ message: error.message }]
-    });
+    })
   }
 }
 
@@ -163,7 +163,7 @@ async function googleSignupController(req, res) {
 
 
 async function signupController(req,res) {
-  const { email } = req.body
+  const { email, password, userType } = req.body
 
   try{
     const userRecord = await BaseUser.findOne({ email: email})
@@ -173,18 +173,30 @@ async function signupController(req,res) {
         message: "User already exists with provided email address"
       })
     }
-    let otp = await Otp.findOne({ email: email}) 
-    if(otp){
-      await Otp.deleteOne({ email: email})
-    }
-    otp = await Otp.create({
-      email
+
+    await Otp.deleteMany({ email: email })
+
+    const otpRecord = await Otp.create({
+      email,
+      password,
+      userType,
+      purpose: "signup"
     })
-    await sendEmail(email,"Your Otp Code", `Your OTP is : ${otp.otp}. It expires in 5 minutes` )
-    return res.status(201).json({ 
-      status: "success",
-      message: "Otp has been send successfully.",
-      data: { expireIn: "5 minutes" }
+
+    await sendEmail({
+      to: email,
+      subject: 'Verify your Sponzo account',
+      text: `Your verification code is: ${otpRecord.otp}. It will expire in 5 minutes.`,
+      html: `<p>Your verification code is: <strong>${otpRecord.otp}</strong></p><p>It will expire in 5 minutes.</p>`
+    })
+    return res.status(200).json({
+      status: 'success',
+      message: 'Verification code sent to email',
+      data: {
+        sessionId: otpRecord.sessionId,
+        email: otpRecord.email,
+        expiresAt: otpRecord.expiresAt
+      }
     })
   } catch(error){
     console.error(error)
@@ -208,7 +220,7 @@ async function signinController(req, res){
         message: "Invalid email or password"
       })
     }
-    const token = await createToken(user._id)
+    const token = await createToken(user.publicId)
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -230,31 +242,35 @@ async function signinController(req, res){
   }
 }
 
-async function verifyOtpController(req, res){
+async function verifyOtpController(req, res) {
   try {
-    const { email, password, otp, userType } = req.body
+    const { sessionId, otp } = req.body
 
-    const otpRecord = await Otp.findOne({ email: email})
+    const otpRecord = await Otp.findOne({ sessionId })
     if (!otpRecord || otpRecord.otp !== otp) {
       return res.status(400).json({ 
         status: "error",
         message: "Invalid or expired OTP. Request a new OTP." 
       })
     }
+    
+    const { email, password, userType } = otpRecord
 
-    await Otp.deleteOne({ email: email})
-
+    
     const user = await BaseUser.create({
       email,
-      authProvider:{
+      authProvider: {
         providerName: "email",
-        password: password
+        password
       },
       isVerified: true,
       userType
     })
+    await Otp.deleteOne({ sessionId })
+    console.log(`user create ${user}`)
+    console.log(`User created with public id: ${user.publicId}`);
     
-    const token = await createToken(user._id)
+    const token = await createToken(user.publicId)
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -262,12 +278,13 @@ async function verifyOtpController(req, res){
       path: '/',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     })
+    
     return res.status(201).json({ 
       status: "success",
       message: "User created successfully",
       data: { token }
     })
-  } catch(error) {
+  } catch (error) {
     return res.status(500).json({ 
       status: "error",
       message: "Server error",
@@ -276,36 +293,43 @@ async function verifyOtpController(req, res){
   }
 }
 
-async function resendOtpController(req, res){
-  const { email } = req.body
+async function resendOtpController(req, res) {
+  const { sessionId } = req.body
 
   try {
-    const userRecord = await BaseUser.findOne({ email })
-    if(userRecord && userRecord.isVerified === true){
+    const existingOtp = await Otp.findOne({ sessionId })
+    
+    if (!existingOtp) {
       return res.status(400).json({ 
         status: "error",
-        message: "User is already verified."
+        message: "Invalid session ID or expired OTP."
       })
     }
-    let otp = await Otp.findOne({ email: email }) 
-    if(otp){
-      await Otp.deleteOne({ email: email})
-    }
-    otp = await Otp.create({
-      email
+
+    const newOtp = await existingOtp.requestNewOtp()
+    
+    await sendEmail({
+      to: newOtp.email,
+      subject: "Your New Verification Code",
+      text: `Your new verification code is: ${newOtp.otp}. It will expire in 5 minutes.`,
+      html: `<p>Your new verification code is: <strong>${newOtp.otp}</strong></p><p>It will expire in 5 minutes.</p>`
     })
-    await sendEmail(email,"Your Otp Code", `Your OTP is : ${otp.otp}. It expires in 5 minutes` )
+    
     return res.status(201).json({ 
       status: "success",
-      message: "Otp has been send successfully.",
-      data: { expireIn: "5 minutes" }
+      message: "New verification code sent successfully.",
+      data: { 
+        sessionId: newOtp.sessionId,
+        email: newOtp.email,
+        expiresAt: newOtp.expiresAt
+      }
     })
-  } catch(error) {
-      return res.status(500).json({ 
-        status: "error",
-        message: "Server error",
-        errors: [{ message: error.message }]
-      })
+  } catch (error) {
+    return res.status(500).json({ 
+      status: "error",
+      message: "Server error",
+      errors: [{ message: error.message }]
+    })
   }
 }
 

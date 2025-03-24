@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer'
 
-async function sendEmail(to, subject, text) {
+async function sendEmail(options) {
+  const { to, subject, text, html } = options
   try {
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
@@ -13,12 +14,13 @@ async function sendEmail(to, subject, text) {
       } 
     })
 
-    // await transporter.verify();
+    await transporter.verify();
     const info = await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: to,
       subject: subject,
       text: text,
+      html: html
     })
     
     if (info.rejected && info.rejected.length > 0) {
