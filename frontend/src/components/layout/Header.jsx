@@ -1,69 +1,88 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
 function Header() {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [creatorsOpen, setCreatorsOpen] = useState(false);
+  const [brandsOpen, setBrandsOpen] = useState(false);
 
   return (
     <header className="bg-[#F9F7F7] text-[#112D4E] p-4 shadow-md">
-      <div className="container mx-auto flex justify-between items-center">
-       
-        <div className="flex items-center space-x-6">
-          <h1 className="schoolbell-font text-4xl ml-20 text-[#3F72AF]">Sponzo</h1>
-          <Link to="/campaigns" className="px-4 py-2 hover:text-[#3F72AF]">
-            Campaigns
-          </Link>
-          <Link to="/pricing" className="px-4 py-2 hover:text-[#3F72AF]">
-            Pricing
+      <div className="container mx-auto flex items-center justify-between">
+        {/* Logo */}
+        <h1 className=" text-4xl text-[#3F72AF] ml-17">Sponzo</h1>
+
+        {/* Center Navigation */}
+        <div className="flex items-center gap-8">
+          {/* Creators Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setCreatorsOpen(!creatorsOpen)}
+              className="flex items-center gap-1 hover:text-[#3F72AF]"
+            >
+              FOR CREATORS <span className="text-xs">▼</span>
+            </button>
+            {creatorsOpen && (
+              <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-[#DBE2EF] rounded-md shadow-lg py-2">
+                <Link
+                  to="/signup"
+                  className="block px-4 py-2 hover:bg-[#DBE2EF] text-[#112D4E]"
+                >
+                  Sign Up
+                </Link>
+                <Link
+                  to="/pricing"
+                  className="block px-4 py-2 hover:bg-[#DBE2EF] text-[#112D4E]"
+                >
+                  Pricing
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Brands Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setBrandsOpen(!brandsOpen)}
+              className="flex items-center gap-1 hover:text-[#3F72AF]"
+            >
+              FOR BRANDS <span className="text-xs">▼</span>
+            </button>
+            {brandsOpen && (
+              <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-[#DBE2EF] rounded-md shadow-lg py-2">
+                <Link
+                  to="/signup"
+                  className="block px-4 py-2 hover:bg-[#DBE2EF] text-[#112D4E]"
+                >
+                  Sign Up
+                </Link>
+                <Link
+                  to="/pricing"
+                  className="block px-4 py-2 hover:bg-[#DBE2EF] text-[#112D4E]"
+                >
+                  Pricing
+                </Link>
+              </div>
+            )}
+          </div>
+
+          <Link to="/pricing" className="hover:text-[#3F72AF]">
+            PRICING
           </Link>
         </div>
 
-      
-        <div className="flex items-center space-x-6 mr-20">
-         
-          <div className="relative">
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="px-4 py-2 bg-[#3F72AF] text-white rounded-lg hover:bg-[#112D4E] transition"
-            >
-              Sign Up ▼
-            </button>
-
-            <AnimatePresence>
-              {dropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute right-0 mt-2 w-40 bg-white border border-[#DBE2EF] shadow-md rounded-lg"
-                >
-                  <Link
-                    to="/Signup"
-                    className="block px-4 py-2 text-[#112D4E] hover:bg-[#DBE2EF] transition"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    Brand
-                  </Link>
-                  <Link
-                    to="/Signup"
-                    className="block px-4 py-2 text-[#112D4E] hover:bg-[#DBE2EF] transition"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    Creator
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Log In Button */}
+        {/* Auth Buttons */}
+        <div className="flex items-center gap-4 mr-17">
           <Link
-            to="/Signin"
-            className="px-4 py-2 bg-[#DBE2EF] text-[#112D4E] rounded-lg hover:bg-[#3F72AF] hover:text-white transition"
+            to="/signin"
+            className="px-4 py-2 rounded-lg bg-[#DBE2EF] text-[#112D4E] hover:bg-[#3F72AF] hover:text-white transition"
           >
-            Log In
+            LOGIN
+          </Link>
+          <Link
+            to="/signup"
+            className="px-4 py-2 rounded-lg bg-[#3F72AF] text-white hover:bg-[#112D4E] transition"
+          >
+            GET ACCESS
           </Link>
         </div>
       </div>
