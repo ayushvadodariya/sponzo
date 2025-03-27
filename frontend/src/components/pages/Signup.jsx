@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import googleIcon from "../../assets/google-icon.png";
+import googleIcon from "../../assets/google.png";
 
 function Signup() {
   const [activeTab, setActiveTab] = useState("Creator");
