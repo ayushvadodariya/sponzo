@@ -1,9 +1,16 @@
 import mongoose, { Schema } from 'mongoose'
 import bcrypt from 'bcrypt'
+import crypto from 'crypto'
 
 const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 
 const baseUserSchema = new Schema({
+  publicId: {
+    type: String,
+    unique: true,
+    default: () => `usr_${crypto.randomBytes(16).toString('hex')}`,
+    immutable: true,
+  },
   email: { 
     type: String, 
     unique: true, 
@@ -69,6 +76,19 @@ baseUserSchema.pre("save", async function (next) {
     next(error)
   }
 })
+
+// Method to safely return user info without sensitive data
+baseUserSchema.methods.toPublicJSON = function() {
+  return {
+    id: this.publicId,
+    email: this.email,
+    isVerified: this.isVerified,
+    userType: this.userType,
+    profilePicture: this.profilePicture,
+    createdAt: this.createdAt,
+    updatedAt: this.updatedAt,
+  };
+};
 
 const BaseUser = mongoose.model('BaseUser', baseUserSchema)
 

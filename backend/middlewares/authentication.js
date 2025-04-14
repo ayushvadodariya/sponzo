@@ -34,8 +34,8 @@ async function authMiddleware(req, res, next) {
     }
     
     try {
-      const user = await validateToken(cookieResult.data);
-      req.user = user;
+      const tokenPayload= await validateToken(cookieResult.data);
+      req.userId = tokenPayload.userId;
       next();
     } catch (error) {
       // Clear the invalid token cookie
